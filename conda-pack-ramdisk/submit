@@ -1,0 +1,48 @@
+#!/bin/bash
+
+#source activate python-test-3.7
+
+echo "Starting Cobalt job script"
+
+echo "----Cobalt Nodefile: -----"
+(printenv | grep COBALT_PARTNAME) >host.txt
+cat $COBALT_NODEFILE
+echo $COBALT_PARTNAME
+echo "---------"
+echo `pwd`
+echo "--------------------------"
+
+export JOBNAME="python.test"
+
+set -e
+
+export TIMEFORMAT=%R
+
+#for i in 1 2 4 8 16 32 64;
+#do
+#        echo "Running python interpreter test on $i ranks" >> data
+#        aprun -n $i -N $i -d 1 bash time.sh
+#done
+
+for i in $1;
+#for i in $PROCS;
+do
+    (time aprun -n $i -N 1 -d 1 bash prefix.sh $i interpreter) >>data-aprun-interpreter-$i 2>&1
+    (time aprun -n $((i*64)) -N 64 -d 1 bash tmp-interpreter.sh $i interpreter) >>data-aprun-interpreter-$i 2>&1
+    aprun -n $i -N 1 -d 1 bash clean.sh
+    echo "test interpreter done"
+
+    for j in numpy scipy sklearn pandas tensorflow;
+    do
+        (time aprun -n $i -N 1 -d 1 bash prefix.sh $i $j) >>data-aprun-$j-$i 2>&1
+        (time aprun -n $((i*64)) -N 64 -d 1 bash tmp.sh $i $j) >>data-aprun-$j-$i 2>&1
+        aprun -n $i -N 1 -d 1 bash clean.sh
+        echo "test $j done"
+    done
+done
+
+
+wait
+
+echo "Done"
+echo "End of Cobalt job"
